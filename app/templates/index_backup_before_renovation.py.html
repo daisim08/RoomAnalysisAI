@@ -1,0 +1,1392 @@
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Room Analysis AI</title>
+
+    <style>
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+        }
+
+        body {
+            background: #f4f7fb;
+            color: #222;
+            min-height: 100vh;
+        }
+
+        header {
+            background: #1f4e79;
+            color: white;
+            padding: 25px 15px;
+            text-align: center;
+        }
+
+        header h1 {
+            font-size: 30px;
+            margin-bottom: 8px;
+        }
+
+        header p {
+            font-size: 15px;
+        }
+
+        .container {
+            width: 90%;
+            max-width: 900px;
+            margin: 30px auto;
+        }
+
+        .card {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+            margin-bottom: 25px;
+        }
+
+        .card h2 {
+            color: #1f4e79;
+            margin-bottom: 20px;
+        }
+
+        /* ================================
+           UPLOAD
+        ================================= */
+
+        .upload-area {
+            border: 2px dashed #1f4e79;
+            border-radius: 12px;
+            padding: 30px 20px;
+            text-align: center;
+            background: #f8fbff;
+        }
+
+        .upload-area p {
+            margin-bottom: 18px;
+            font-size: 16px;
+        }
+
+        .upload-button {
+            display: inline-block;
+            background: #1f4e79;
+            color: white;
+            padding: 13px 22px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        .upload-button:hover {
+            background: #163a5c;
+        }
+
+        #imageInput {
+            display: none;
+        }
+
+        #preview {
+            display: none;
+            width: 100%;
+            max-width: 500px;
+            max-height: 400px;
+            object-fit: contain;
+            margin: 25px auto;
+            border-radius: 12px;
+        }
+
+        /* ================================
+           BUTTON
+        ================================= */
+
+        button {
+            display: block;
+            width: 100%;
+            padding: 14px;
+            margin-top: 20px;
+            border: none;
+            border-radius: 8px;
+            background: #1f4e79;
+            color: white;
+            font-size: 17px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #163a5c;
+        }
+
+        button:disabled {
+            background: #999;
+            cursor: not-allowed;
+        }
+
+        /* ================================
+           LOADING
+        ================================= */
+
+        .loading {
+            display: none;
+            text-align: center;
+            margin-top: 20px;
+            font-size: 16px;
+        }
+
+        /* ================================
+           RESULT
+        ================================= */
+
+        .result {
+            display: none;
+            margin-top: 25px;
+            padding: 20px;
+            background: #f3f8fc;
+            border-radius: 10px;
+        }
+
+        .result h2 {
+            margin-bottom: 15px;
+        }
+
+        .result p {
+            margin: 10px 0;
+            font-size: 17px;
+        }
+
+        .condition-box {
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            border-left: 5px solid #1f4e79;
+        }
+
+        /* ================================
+           PROBABILITIES
+        ================================= */
+
+        .probabilities {
+            margin-top: 20px;
+        }
+
+        .probabilities h3 {
+            margin-bottom: 10px;
+        }
+
+        .probability-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 5px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        /* ================================
+           PRIORITY
+        ================================= */
+
+        .priority {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            background: #fff4e5;
+        }
+
+        .priority h3 {
+            margin-bottom: 8px;
+        }
+
+        /* ================================
+           RECOMMENDATION
+        ================================= */
+
+        .recommendation {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            background: #eef7ee;
+        }
+
+        .recommendation h3 {
+            margin-bottom: 8px;
+        }
+
+        /* ================================
+           RENOVATION
+        ================================= */
+
+        .renovation-section {
+            display: none;
+            margin-top: 25px;
+        }
+
+        .renovation-section h2 {
+            margin-bottom: 10px;
+        }
+
+        .renovation-section > p {
+            margin-bottom: 20px;
+            color: #555;
+        }
+
+        .style-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+        }
+
+        .style-option {
+            border: 2px solid #ddd;
+            border-radius: 12px;
+            padding: 18px;
+            background: white;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .style-option:hover {
+            border-color: #1f4e79;
+            transform: translateY(-2px);
+        }
+
+        .style-option.selected {
+            border-color: #1f4e79;
+            background: #eef6ff;
+        }
+
+        .style-icon {
+            font-size: 30px;
+            margin-bottom: 8px;
+        }
+
+        .style-option h3 {
+            color: #1f4e79;
+            margin-bottom: 6px;
+        }
+
+        .style-option p {
+            font-size: 14px;
+            color: #666;
+            line-height: 1.4;
+        }
+
+        .selected-style {
+            margin-top: 15px;
+            padding: 12px;
+            background: #f3f8fc;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        #generateButton {
+            margin-top: 18px;
+        }
+
+        .generation-message {
+            display: none;
+            margin-top: 20px;
+            padding: 18px;
+            border-radius: 10px;
+            background: #f5f5f5;
+            text-align: center;
+        }
+
+        /* ================================
+           FEATURES
+        ================================= */
+
+        .features {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+        }
+
+        .feature {
+            padding: 20px;
+            border-radius: 10px;
+            background: #f5f8fb;
+            text-align: center;
+        }
+
+        .feature-icon {
+            font-size: 30px;
+        }
+
+        .feature h3 {
+            margin: 8px 0;
+        }
+
+        .feature p {
+            color: #555;
+            line-height: 1.4;
+        }
+
+        /* ================================
+           FOOTER
+        ================================= */
+
+        footer {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+
+        /* ================================
+           MOBILE
+        ================================= */
+
+        @media (max-width: 600px) {
+
+            header h1 {
+                font-size: 24px;
+            }
+
+            header p {
+                font-size: 14px;
+            }
+
+            .container {
+                width: 94%;
+                margin: 20px auto;
+            }
+
+            .card {
+                padding: 20px;
+            }
+
+            .upload-button {
+                width: 100%;
+            }
+
+            .features {
+                grid-template-columns: 1fr;
+            }
+
+            .style-grid {
+                grid-template-columns: 1fr;
+            }
+
+        }
+
+    </style>
+
+</head>
+
+
+<body>
+
+
+<!-- =========================================================
+     HEADER
+========================================================= -->
+
+<header>
+
+    <h1>🏠 Room Analysis AI</h1>
+
+    <p>
+        AI-Based Room Damage Detection and Renovation Visualization
+    </p>
+
+</header>
+
+
+<div class="container">
+
+
+<!-- =========================================================
+     UPLOAD CARD
+========================================================= -->
+
+<div class="card">
+
+    <h2>Upload Room Image</h2>
+
+    <div class="upload-area">
+
+        <p>
+            Select or capture an image of your room
+        </p>
+
+        <label
+            for="imageInput"
+            class="upload-button"
+        >
+            📷 Choose Room Image
+        </label>
+
+        <input
+            type="file"
+            id="imageInput"
+            accept="image/*"
+        >
+
+    </div>
+
+
+    <img
+        id="preview"
+        alt="Room Preview"
+    >
+
+
+    <button
+        id="analyzeButton"
+        onclick="analyzeRoom()"
+        disabled
+    >
+        🔍 Analyze Room
+    </button>
+
+
+    <div
+        id="loading"
+        class="loading"
+    >
+
+        <p>
+            🔍 AI is analyzing your room...
+        </p>
+
+    </div>
+
+
+<!-- =========================================================
+     ANALYSIS RESULT
+========================================================= -->
+
+<div
+    id="result"
+    class="result"
+>
+
+    <h2>Analysis Result</h2>
+
+
+    <div class="condition-box">
+
+        <p>
+
+            <strong>
+                Detected Condition:
+            </strong>
+
+            <span id="condition">
+                -
+            </span>
+
+        </p>
+
+
+        <p>
+
+            <strong>
+                Confidence:
+            </strong>
+
+            <span id="confidence">
+                -
+            </span>
+
+        </p>
+
+    </div>
+
+
+    <!-- PROBABILITIES -->
+
+    <div class="probabilities">
+
+        <h3>
+            Prediction Probabilities
+        </h3>
+
+
+        <div class="probability-row">
+
+            <span>
+                Crack
+            </span>
+
+            <span id="crackProbability">
+                -
+            </span>
+
+        </div>
+
+
+        <div class="probability-row">
+
+            <span>
+                Dampness
+            </span>
+
+            <span id="dampnessProbability">
+                -
+            </span>
+
+        </div>
+
+
+        <div class="probability-row">
+
+            <span>
+                Normal
+            </span>
+
+            <span id="normalProbability">
+                -
+            </span>
+
+        </div>
+
+
+        <div class="probability-row">
+
+            <span>
+                Peeling Paint
+            </span>
+
+            <span id="peelingProbability">
+                -
+            </span>
+
+        </div>
+
+    </div>
+
+
+    <!-- REPAIR PRIORITY -->
+
+    <div class="priority">
+
+        <h3>
+            🛠️ Repair Priority
+        </h3>
+
+        <p id="repairPriority">
+            -
+        </p>
+
+    </div>
+
+
+    <!-- MATERIAL RECOMMENDATION -->
+
+    <div class="recommendation">
+
+        <h3>
+            🧱 Material Recommendation
+        </h3>
+
+        <p id="materialRecommendation">
+            -
+        </p>
+
+    </div>
+
+
+    <!-- =====================================================
+         RENOVATION OPTIONS
+    ====================================================== -->
+
+    <div
+        id="renovationSection"
+        class="renovation-section"
+    >
+
+        <h2>
+            🎨 AI Renovation
+        </h2>
+
+        <p>
+            Choose the renovation style you prefer.
+        </p>
+
+
+        <div class="style-grid">
+
+
+            <!-- MINIMAL -->
+
+            <div
+                class="style-option"
+                data-style="minimal"
+                onclick="selectStyle(this)"
+            >
+
+                <div class="style-icon">
+                    🏠
+                </div>
+
+                <h3>
+                    Minimal
+                </h3>
+
+                <p>
+                    Simple, clean and uncluttered
+                    room design.
+                </p>
+
+            </div>
+
+
+            <!-- CONTEMPORARY -->
+
+            <div
+                class="style-option"
+                data-style="contemporary"
+                onclick="selectStyle(this)"
+            >
+
+                <div class="style-icon">
+                    ✨
+                </div>
+
+                <h3>
+                    Contemporary
+                </h3>
+
+                <p>
+                    Modern, stylish and comfortable
+                    room design.
+                </p>
+
+            </div>
+
+
+            <!-- LUXURY -->
+
+            <div
+                class="style-option"
+                data-style="luxury"
+                onclick="selectStyle(this)"
+            >
+
+                <div class="style-icon">
+                    💎
+                </div>
+
+                <h3>
+                    Luxury
+                </h3>
+
+                <p>
+                    Premium, elegant and sophisticated
+                    room design.
+                </p>
+
+            </div>
+
+
+            <!-- BUDGET -->
+
+            <div
+                class="style-option"
+                data-style="budget"
+                onclick="selectStyle(this)"
+            >
+
+                <div class="style-icon">
+                    💰
+                </div>
+
+                <h3>
+                    Budget-Friendly
+                </h3>
+
+                <p>
+                    Affordable improvements using
+                    practical materials.
+                </p>
+
+            </div>
+
+
+            <!-- ECO -->
+
+            <div
+                class="style-option"
+                data-style="eco"
+                onclick="selectStyle(this)"
+            >
+
+                <div class="style-icon">
+                    🌿
+                </div>
+
+                <h3>
+                    Eco-Friendly
+                </h3>
+
+                <p>
+                    Sustainable materials and
+                    environmentally friendly design.
+                </p>
+
+            </div>
+
+
+        </div>
+
+
+        <div
+            id="selectedStyle"
+            class="selected-style"
+        >
+
+            Please select a renovation style.
+
+        </div>
+
+
+        <button
+            id="generateButton"
+            onclick="generateRenovation()"
+            disabled
+        >
+
+            🎨 Generate Renovated Room
+
+        </button>
+
+
+        <div
+            id="generationMessage"
+            class="generation-message"
+        >
+
+            <h3>
+                🎨 Renovation Generation
+            </h3>
+
+            <p id="generationText">
+
+                Your selected renovation style
+                will be used to generate the
+                renovated room concept.
+
+            </p>
+
+        </div>
+
+    </div>
+
+</div>
+
+</div>
+
+
+<!-- =========================================================
+     PROJECT FEATURES
+========================================================= -->
+
+<div class="card">
+
+    <h2>
+        Project Features
+    </h2>
+
+
+    <div class="features">
+
+
+        <div class="feature">
+
+            <div class="feature-icon">
+                🔍
+            </div>
+
+            <h3>
+                Damage Detection
+            </h3>
+
+            <p>
+                Detects visible room damage using
+                CNN-based image analysis.
+            </p>
+
+        </div>
+
+
+        <div class="feature">
+
+            <div class="feature-icon">
+                🎨
+            </div>
+
+            <h3>
+                AI Renovation
+            </h3>
+
+            <p>
+                Generates renovation concepts
+                based on user preference.
+            </p>
+
+        </div>
+
+
+        <div class="feature">
+
+            <div class="feature-icon">
+                🧱
+            </div>
+
+            <h3>
+                Material Recommendation
+            </h3>
+
+            <p>
+                Suggests suitable materials for
+                the detected room condition.
+            </p>
+
+        </div>
+
+
+        <div class="feature">
+
+            <div class="feature-icon">
+                📊
+            </div>
+
+            <h3>
+                Repair Priority
+            </h3>
+
+            <p>
+                Helps identify which room
+                repairs need more attention.
+            </p>
+
+        </div>
+
+
+    </div>
+
+</div>
+
+
+</div>
+
+
+<!-- =========================================================
+     FOOTER
+========================================================= -->
+
+<footer>
+
+    <p>
+        Room Analysis AI © 2026
+    </p>
+
+</footer>
+
+
+<script>
+
+
+// ============================================================
+// ELEMENTS
+// ============================================================
+
+const imageInput =
+    document.getElementById("imageInput");
+
+const preview =
+    document.getElementById("preview");
+
+const analyzeButton =
+    document.getElementById("analyzeButton");
+
+const loading =
+    document.getElementById("loading");
+
+const result =
+    document.getElementById("result");
+
+const renovationSection =
+    document.getElementById("renovationSection");
+
+const selectedStyleText =
+    document.getElementById("selectedStyle");
+
+const generateButton =
+    document.getElementById("generateButton");
+
+const generationMessage =
+    document.getElementById("generationMessage");
+
+const generationText =
+    document.getElementById("generationText");
+
+
+let selectedStyle = null;
+
+
+// ============================================================
+// IMAGE SELECTION
+// ============================================================
+
+imageInput.addEventListener(
+    "change",
+    function () {
+
+        const file =
+            this.files[0];
+
+
+        if (!file) {
+
+            analyzeButton.disabled = true;
+
+            preview.style.display = "none";
+
+            return;
+
+        }
+
+
+        const reader =
+            new FileReader();
+
+
+        reader.onload =
+            function (event) {
+
+                preview.src =
+                    event.target.result;
+
+                preview.style.display =
+                    "block";
+
+            };
+
+
+        reader.readAsDataURL(file);
+
+
+        analyzeButton.disabled =
+            false;
+
+        result.style.display =
+            "none";
+
+        renovationSection.style.display =
+            "none";
+
+        selectedStyle = null;
+
+        generateButton.disabled =
+            true;
+
+    }
+);
+
+
+// ============================================================
+// ANALYZE ROOM
+// ============================================================
+
+async function analyzeRoom() {
+
+
+    const file =
+        imageInput.files[0];
+
+
+    if (!file) {
+
+        alert(
+            "Please select a room image."
+        );
+
+        return;
+
+    }
+
+
+    const formData =
+        new FormData();
+
+
+    formData.append(
+        "image",
+        file
+    );
+
+
+    loading.style.display =
+        "block";
+
+    analyzeButton.disabled =
+        true;
+
+    result.style.display =
+        "none";
+
+
+    try {
+
+
+        const response =
+            await fetch(
+                "/predict",
+                {
+                    method: "POST",
+                    body: formData
+                }
+            );
+
+
+        const data =
+            await response.json();
+
+
+        if (!response.ok) {
+
+            throw new Error(
+                data.error ||
+                "Prediction failed."
+            );
+
+        }
+
+
+        // ================================================
+        // CONDITION
+        // ================================================
+
+        document.getElementById(
+            "condition"
+        ).textContent =
+            formatCondition(
+                data.class
+            );
+
+
+        // ================================================
+        // CONFIDENCE
+        // ================================================
+
+        document.getElementById(
+            "confidence"
+        ).textContent =
+            data.confidence + "%";
+
+
+        // ================================================
+        // PROBABILITIES
+        // ================================================
+
+        document.getElementById(
+            "crackProbability"
+        ).textContent =
+            data.probabilities.crack + "%";
+
+
+        document.getElementById(
+            "dampnessProbability"
+        ).textContent =
+            data.probabilities.dampness + "%";
+
+
+        document.getElementById(
+            "normalProbability"
+        ).textContent =
+            data.probabilities.normal + "%";
+
+
+        document.getElementById(
+            "peelingProbability"
+        ).textContent =
+            data.probabilities.peeling_paint + "%";
+
+
+        // ================================================
+        // REPAIR PRIORITY
+        // ================================================
+
+        document.getElementById(
+            "repairPriority"
+        ).textContent =
+            addPriorityIcon(
+                data.repair_priority
+            );
+
+
+        // ================================================
+        // MATERIAL
+        // ================================================
+
+        document.getElementById(
+            "materialRecommendation"
+        ).textContent =
+            data.material_recommendation;
+
+
+        // ================================================
+        // SHOW RESULT
+        // ================================================
+
+        result.style.display =
+            "block";
+
+
+        // ================================================
+        // SHOW RENOVATION OPTIONS
+        // ================================================
+
+        renovationSection.style.display =
+            "block";
+
+
+        // Scroll to result
+
+        setTimeout(
+            function () {
+
+                result.scrollIntoView({
+                    behavior: "smooth",
+                    block: "start"
+                });
+
+            },
+            200
+        );
+
+
+    }
+
+    catch (error) {
+
+        alert(
+            "Error: " +
+            error.message
+        );
+
+    }
+
+    finally {
+
+        loading.style.display =
+            "none";
+
+        analyzeButton.disabled =
+            false;
+
+    }
+
+}
+
+
+// ============================================================
+// FORMAT CONDITION
+// ============================================================
+
+function formatCondition(condition) {
+
+
+    if (condition === "crack") {
+
+        return "Crack";
+
+    }
+
+
+    if (condition === "dampness") {
+
+        return "Dampness";
+
+    }
+
+
+    if (condition === "normal") {
+
+        return "Normal";
+
+    }
+
+
+    if (condition === "peeling_paint") {
+
+        return "Peeling Paint";
+
+    }
+
+
+    return condition;
+
+}
+
+
+// ============================================================
+// PRIORITY ICON
+// ============================================================
+
+function addPriorityIcon(priority) {
+
+
+    if (
+        priority.toLowerCase()
+            .includes("high")
+    ) {
+
+        return "🔴 " + priority;
+
+    }
+
+
+    if (
+        priority.toLowerCase()
+            .includes("medium")
+    ) {
+
+        return "🟠 " + priority;
+
+    }
+
+
+    return "🟢 " + priority;
+
+}
+
+
+// ============================================================
+// SELECT RENOVATION STYLE
+// ============================================================
+
+function selectStyle(element) {
+
+
+    const options =
+        document.querySelectorAll(
+            ".style-option"
+        );
+
+
+    options.forEach(
+        function (option) {
+
+            option.classList.remove(
+                "selected"
+            );
+
+        }
+    );
+
+
+    element.classList.add(
+        "selected"
+    );
+
+
+    selectedStyle =
+        element.dataset.style;
+
+
+    const styleName =
+        element.querySelector(
+            "h3"
+        ).textContent;
+
+
+    selectedStyleText.textContent =
+        "Selected renovation style: " +
+        styleName;
+
+
+    generateButton.disabled =
+        false;
+
+
+    generationMessage.style.display =
+        "none";
+
+}
+
+
+// ============================================================
+// GENERATE RENOVATION
+// ============================================================
+
+function generateRenovation() {
+
+
+    if (!selectedStyle) {
+
+        alert(
+            "Please select a renovation style."
+        );
+
+        return;
+
+    }
+
+
+    const styleNames = {
+
+        minimal:
+            "Minimal",
+
+        contemporary:
+            "Contemporary",
+
+        luxury:
+            "Luxury",
+
+        budget:
+            "Budget-Friendly",
+
+        eco:
+            "Eco-Friendly"
+
+    };
+
+
+    const selectedName =
+        styleNames[selectedStyle];
+
+
+    generationMessage.style.display =
+        "block";
+
+
+    generationText.textContent =
+        "✨ " +
+        selectedName +
+        " renovation selected. " +
+        "The Stable Diffusion renovation " +
+        "module will generate the renovated " +
+        "room concept here.";
+
+
+    generationMessage.scrollIntoView({
+        behavior: "smooth",
+        block: "center"
+    });
+
+}
+
+
+</script>
+
+
+</body>
+
+</html>
+

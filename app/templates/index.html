@@ -1,0 +1,1706 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Room Analysis AI</title>
+
+    <style>
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f4f7fb;
+            color: #1f2937;
+        }
+
+        .container {
+            width: 92%;
+            max-width: 1100px;
+            margin: 30px auto;
+        }
+
+        .header {
+            background: white;
+            border-radius: 18px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+        }
+
+        .header h1 {
+            margin: 0 0 8px;
+            font-size: 30px;
+        }
+
+        .header p {
+            margin: 0;
+            color: #64748b;
+        }
+
+        .card {
+            background: white;
+            border-radius: 18px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+        }
+
+        .card h2 {
+            margin-top: 0;
+        }
+
+        .upload-box {
+            border: 2px dashed #cbd5e1;
+            border-radius: 14px;
+            padding: 30px;
+            text-align: center;
+            background: #f8fafc;
+        }
+
+        input[type="file"] {
+            margin: 15px 0;
+        }
+
+        input[type="number"],
+        select {
+            width: 100%;
+            padding: 13px;
+            border: 1px solid #cbd5e1;
+            border-radius: 10px;
+            font-size: 16px;
+            margin-top: 8px;
+        }
+
+        label {
+            font-weight: bold;
+            display: block;
+            margin-top: 15px;
+        }
+
+        button {
+            border: none;
+            border-radius: 10px;
+            padding: 13px 20px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 15px;
+        }
+
+        .primary-btn {
+            background: #2563eb;
+            color: white;
+        }
+
+        .green-btn {
+            background: #16a34a;
+            color: white;
+        }
+
+        .purple-btn {
+            background: #7c3aed;
+            color: white;
+        }
+
+        .secondary-btn {
+            background: #475569;
+            color: white;
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .result-box {
+            background: #f8fafc;
+            border-radius: 14px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .error {
+            background: #fee2e2;
+            color: #991b1b;
+            padding: 14px;
+            border-radius: 10px;
+            margin-top: 15px;
+        }
+
+        .success {
+            background: #dcfce7;
+            color: #166534;
+            padding: 14px;
+            border-radius: 10px;
+            margin-top: 15px;
+        }
+
+        .image-preview {
+            width: 100%;
+            max-height: 450px;
+            object-fit: contain;
+            border-radius: 14px;
+            margin-top: 15px;
+            background: #e2e8f0;
+        }
+
+        .progress {
+            margin-top: 15px;
+            padding: 12px;
+            background: #eff6ff;
+            color: #1d4ed8;
+            border-radius: 10px;
+        }
+
+        .probability {
+            margin: 8px 0;
+        }
+
+        .bar {
+            width: 100%;
+            height: 10px;
+            background: #e2e8f0;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .bar-fill {
+            height: 100%;
+            background: #2563eb;
+        }
+
+        .budget-summary {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            margin-top: 20px;
+        }
+
+        .summary-card {
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 18px;
+            text-align: center;
+        }
+
+        .summary-card h3 {
+            margin: 0 0 8px;
+            font-size: 14px;
+            color: #64748b;
+        }
+
+        .summary-card p {
+            margin: 0;
+            font-size: 22px;
+            font-weight: bold;
+        }
+
+        .budget-item {
+            margin-top: 18px;
+        }
+
+        .budget-item-header {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            font-weight: bold;
+            margin-bottom: 7px;
+        }
+
+        .budget-bar {
+            width: 100%;
+            height: 13px;
+            background: #e2e8f0;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .budget-bar-fill {
+            height: 100%;
+            background: #7c3aed;
+        }
+
+        .recommendation {
+            background: #f8fafc;
+            border-radius: 10px;
+            padding: 12px;
+            margin-top: 8px;
+        }
+
+        .material {
+            padding: 10px 0;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .material:last-child {
+            border-bottom: none;
+        }
+
+        .renovation-image {
+            width: 100%;
+            max-height: 650px;
+            object-fit: contain;
+            border-radius: 14px;
+            margin-top: 15px;
+            background: #e2e8f0;
+        }
+
+        .status {
+            font-weight: bold;
+        }
+
+        @media (max-width: 700px) {
+
+            .container {
+                width: 95%;
+            }
+
+            .budget-summary {
+                grid-template-columns: 1fr;
+            }
+
+            .header h1 {
+                font-size: 25px;
+            }
+
+            .card {
+                padding: 18px;
+            }
+        }
+
+    </style>
+
+</head>
+
+
+<body>
+
+<div class="container">
+
+    <!-- =====================================================
+         HEADER
+    ====================================================== -->
+
+    <div class="header">
+
+        <h1>🏠 Room Analysis AI</h1>
+
+        <p>
+            Detect room damage, plan your renovation budget,
+            and visualize your renovated room using AI.
+        </p>
+
+    </div>
+
+
+    <!-- =====================================================
+         ROOM IMAGE
+    ====================================================== -->
+
+    <div class="card">
+
+        <h2>📷 Upload Room Image</h2>
+
+        <div class="upload-box">
+
+            <p>
+                Upload a clear image of the room you want to analyze.
+            </p>
+
+            <input
+                type="file"
+                id="imageInput"
+                accept="image/*"
+            >
+
+            <br>
+
+            <button
+                class="primary-btn"
+                onclick="analyzeRoom()"
+            >
+                🔍 Analyze Room
+            </button>
+
+        </div>
+
+        <div id="previewContainer"></div>
+
+        <div
+            id="analysisStatus"
+            class="hidden"
+        ></div>
+
+        <div
+            id="errorMessage"
+            class="hidden"
+        ></div>
+
+    </div>
+
+
+    <!-- =====================================================
+         DAMAGE RESULT
+    ====================================================== -->
+
+    <div
+        id="damageCard"
+        class="card hidden"
+    >
+
+        <h2>🔎 Room Analysis Result</h2>
+
+        <div class="result-box">
+
+            <p>
+                <strong>Detected Condition:</strong>
+                <span id="detectedCondition">
+                    -
+                </span>
+            </p>
+
+            <p>
+                <strong>Confidence:</strong>
+                <span id="detectedConfidence">
+                    -
+                </span>
+            </p>
+
+            <p>
+                <strong>Repair Priority:</strong>
+                <span id="repairPriority">
+                    -
+                </span>
+            </p>
+
+        </div>
+
+
+        <h3>📊 Detection Probabilities</h3>
+
+        <div id="probabilities"></div>
+
+    </div>
+
+
+    <!-- =====================================================
+         RENOVATION OPTIONS
+    ====================================================== -->
+
+    <div
+        id="renovationCard"
+        class="card hidden"
+    >
+
+        <h2>🎨 AI Renovation</h2>
+
+        <p>
+            Choose a renovation style and enter your total renovation budget.
+        </p>
+
+
+        <label for="style">
+            Renovation Style
+        </label>
+
+        <select id="style">
+
+            <option value="minimal">
+                Minimal
+            </option>
+
+            <option value="contemporary">
+                Contemporary
+            </option>
+
+            <option value="luxury">
+                Luxury
+            </option>
+
+            <option value="budget-friendly">
+                Budget Friendly
+            </option>
+
+            <option value="eco-friendly">
+                Eco Friendly
+            </option>
+
+        </select>
+
+
+        <label for="budget">
+            💰 Total Renovation Budget (₹)
+        </label>
+
+        <input
+            type="number"
+            id="budget"
+            min="1"
+            placeholder="Example: 50000"
+        >
+
+        <p style="color:#64748b;">
+            The budget is used by the AI Budget Planner
+            to divide the renovation amount.
+        </p>
+
+
+        <button
+            class="green-btn"
+            id="budgetPlanButton"
+            onclick="generateBudgetPlan()"
+        >
+            💰 Create AI Budget Plan
+        </button>
+
+
+        <button
+            class="purple-btn"
+            id="renovationButton"
+            onclick="generateRenovation()"
+        >
+            ✨ Generate AI Renovation
+        </button>
+
+
+        <div
+            id="budgetPlanStatus"
+            class="hidden"
+        ></div>
+
+    </div>
+
+
+    <!-- =====================================================
+         AI BUDGET PLANNER RESULT
+    ====================================================== -->
+
+    <div
+        id="budgetPlannerCard"
+        class="card hidden"
+    >
+
+        <h2>💰 AI Budget Planner</h2>
+
+        <p>
+            Your renovation budget is intelligently divided
+            according to the detected room condition and selected style.
+        </p>
+
+
+        <div class="result-box">
+
+            <p>
+                <strong>Detected Condition:</strong>
+                <span id="planCondition">
+                    -
+                </span>
+            </p>
+
+            <p>
+                <strong>Renovation Style:</strong>
+                <span id="planStyle">
+                    -
+                </span>
+            </p>
+
+            <p>
+                <strong>Budget Level:</strong>
+                <span id="planBudgetLevel">
+                    -
+                </span>
+            </p>
+
+            <p>
+                <strong>Repair Priority:</strong>
+                <span id="planPriority">
+                    -
+                </span>
+            </p>
+
+        </div>
+
+
+        <div class="budget-summary">
+
+            <div class="summary-card">
+
+                <h3>Total Budget</h3>
+
+                <p id="planTotalBudget">
+                    ₹0
+                </p>
+
+            </div>
+
+
+            <div class="summary-card">
+
+                <h3>Planned Amount</h3>
+
+                <p id="planTotalPlanned">
+                    ₹0
+                </p>
+
+            </div>
+
+
+            <div class="summary-card">
+
+                <h3>Reserve</h3>
+
+                <p id="planRemaining">
+                    ₹0
+                </p>
+
+            </div>
+
+        </div>
+
+
+        <h3>
+            📊 Budget Allocation
+        </h3>
+
+        <div id="budgetItems"></div>
+
+
+        <h3>
+            🏠 Style Recommendations
+        </h3>
+
+        <div id="styleRecommendations"></div>
+
+    </div>
+
+
+    <!-- =====================================================
+         RENOVATION RESULT
+    ====================================================== -->
+
+    <div
+        id="renovationResultCard"
+        class="card hidden"
+    >
+
+        <h2>✨ AI Renovated Room</h2>
+
+        <div
+            id="renovationStatus"
+            class="progress"
+        >
+            Preparing renovation...
+        </div>
+
+        <img
+            id="renovationImage"
+            class="renovation-image"
+            alt="AI Renovated Room"
+        >
+
+        <div
+            id="renovationDetails"
+            class="result-box"
+        ></div>
+
+    </div>
+
+
+    <!-- =====================================================
+         MATERIAL RECOMMENDATIONS
+    ====================================================== -->
+
+    <div
+        id="materialsCard"
+        class="card hidden"
+    >
+
+        <h2>🧱 Recommended Materials</h2>
+
+        <p>
+            Material recommendations are based on
+            the detected room condition and your renovation budget.
+        </p>
+
+
+        <button
+            class="secondary-btn"
+            onclick="getMaterialRecommendations()"
+        >
+            🧱 Show Recommended Materials
+        </button>
+
+
+        <div
+            id="materialsResult"
+            class="result-box hidden"
+        ></div>
+
+    </div>
+
+</div>
+
+
+<script>
+
+    // ========================================================
+    // GLOBAL VARIABLES
+    // ========================================================
+
+    let selectedFile = null;
+
+    let detectedCondition = null;
+
+    let detectedConfidence = 0;
+
+    let detectedProbabilities = {};
+
+
+    // ========================================================
+    // HELPER FUNCTIONS
+    // ========================================================
+
+    function formatCurrency(value) {
+
+        return "₹" + Number(value).toLocaleString(
+            "en-IN",
+            {
+                maximumFractionDigits: 0
+            }
+        );
+
+    }
+
+
+    function displayName(value) {
+
+        if (!value) {
+            return "-";
+        }
+
+        return String(value)
+            .replaceAll("_", " ")
+            .replace(
+                /\b\w/g,
+                c => c.toUpperCase()
+            );
+
+    }
+
+
+    function showError(message) {
+
+        const errorBox =
+            document.getElementById(
+                "errorMessage"
+            );
+
+        errorBox.className = "error";
+
+        errorBox.innerText = message;
+
+    }
+
+
+    function clearError() {
+
+        const errorBox =
+            document.getElementById(
+                "errorMessage"
+            );
+
+        errorBox.className = "hidden";
+
+        errorBox.innerText = "";
+
+    }
+
+
+    // ========================================================
+    // IMAGE SELECTION
+    // ========================================================
+
+    document
+        .getElementById("imageInput")
+        .addEventListener(
+            "change",
+            function(event) {
+
+                selectedFile =
+                    event.target.files[0];
+
+                if (!selectedFile) {
+                    return;
+                }
+
+                clearError();
+
+
+                const previewContainer =
+                    document.getElementById(
+                        "previewContainer"
+                    );
+
+
+                const imageURL =
+                    URL.createObjectURL(
+                        selectedFile
+                    );
+
+
+                previewContainer.innerHTML = `
+
+                    <img
+                        src="${imageURL}"
+                        class="image-preview"
+                        alt="Selected Room"
+                    >
+
+                `;
+
+            }
+        );
+
+
+    // ========================================================
+    // ANALYZE ROOM
+    // ========================================================
+
+    async function analyzeRoom() {
+
+        clearError();
+
+
+        if (!selectedFile) {
+
+            showError(
+                "Please upload a room image first."
+            );
+
+            return;
+        }
+
+
+        const formData =
+            new FormData();
+
+        formData.append(
+            "image",
+            selectedFile
+        );
+
+
+        const status =
+            document.getElementById(
+                "analysisStatus"
+            );
+
+        status.className =
+            "progress";
+
+        status.innerText =
+            "🔍 Analyzing room using CNN...";
+
+
+        try {
+
+            const response =
+                await fetch(
+                    "/predict",
+                    {
+                        method: "POST",
+                        body: formData
+                    }
+                );
+
+
+            const data =
+                await response.json();
+
+
+            if (!response.ok ||
+                !data.success) {
+
+                throw new Error(
+                    data.error ||
+                    "Room analysis failed."
+                );
+
+            }
+
+
+            detectedCondition =
+                data.condition;
+
+            detectedConfidence =
+                data.confidence_percent;
+
+            detectedProbabilities =
+                data.probabilities;
+
+
+            // ------------------------------------------------
+            // SHOW RESULT
+            // ------------------------------------------------
+
+            document.getElementById(
+                "damageCard"
+            ).classList.remove(
+                "hidden"
+            );
+
+
+            document.getElementById(
+                "renovationCard"
+            ).classList.remove(
+                "hidden"
+            );
+
+
+            document.getElementById(
+                "materialsCard"
+            ).classList.remove(
+                "hidden"
+            );
+
+
+            document.getElementById(
+                "detectedCondition"
+            ).innerText =
+                displayName(
+                    data.condition
+                );
+
+
+            document.getElementById(
+                "detectedConfidence"
+            ).innerText =
+                data.confidence_percent
+                + "%";
+
+
+            document.getElementById(
+                "repairPriority"
+            ).innerText =
+                data.repair_priority;
+
+
+            // ------------------------------------------------
+            // PROBABILITIES
+            // ------------------------------------------------
+
+            const probabilitiesBox =
+                document.getElementById(
+                    "probabilities"
+                );
+
+            probabilitiesBox.innerHTML = "";
+
+
+            for (
+                const [name, value]
+                of Object.entries(
+                    data.probabilities
+                )
+            ) {
+
+                probabilitiesBox.innerHTML += `
+
+                    <div class="probability">
+
+                        <div>
+                            <strong>
+                                ${displayName(name)}
+                            </strong>
+                            ${value}%
+                        </div>
+
+                        <div class="bar">
+
+                            <div
+                                class="bar-fill"
+                                style="width:${value}%"
+                            ></div>
+
+                        </div>
+
+                    </div>
+
+                `;
+
+            }
+
+
+            status.className =
+                "success";
+
+            status.innerText =
+                "✅ Room analysis completed successfully.";
+
+        }
+
+
+        catch (error) {
+
+            status.className =
+                "hidden";
+
+            showError(
+                error.message
+            );
+
+        }
+
+    }
+
+
+    // ========================================================
+    // VALIDATE BUDGET
+    // ========================================================
+
+    function getValidatedBudget() {
+
+        const budgetInput =
+            document.getElementById(
+                "budget"
+            );
+
+
+        const budget =
+            Number(
+                budgetInput.value
+            );
+
+
+        if (
+            !budgetInput.value ||
+            !Number.isFinite(budget) ||
+            budget <= 0
+        ) {
+
+            showError(
+                "Please enter a valid renovation budget."
+            );
+
+            budgetInput.focus();
+
+            return null;
+        }
+
+
+        return budget;
+
+    }
+
+
+    // ========================================================
+    // CREATE AI BUDGET PLAN
+    // ========================================================
+
+    async function generateBudgetPlan() {
+
+        clearError();
+
+
+        if (!detectedCondition) {
+
+            showError(
+                "Please analyze the room first."
+            );
+
+            return;
+        }
+
+
+        const budget =
+            getValidatedBudget();
+
+
+        if (budget === null) {
+            return;
+        }
+
+
+        const style =
+            document.getElementById(
+                "style"
+            ).value;
+
+
+        const button =
+            document.getElementById(
+                "budgetPlanButton"
+            );
+
+
+        const status =
+            document.getElementById(
+                "budgetPlanStatus"
+            );
+
+
+        button.disabled = true;
+
+        status.className =
+            "progress";
+
+        status.innerText =
+            "💰 Creating AI budget plan...";
+
+
+        try {
+
+            const response =
+                await fetch(
+                    "/budget-plan",
+                    {
+                        method: "POST",
+
+                        headers: {
+                            "Content-Type":
+                                "application/json"
+                        },
+
+                        body:
+                            JSON.stringify({
+
+                                condition:
+                                    detectedCondition,
+
+                                budget:
+                                    budget,
+
+                                style:
+                                    style
+
+                            })
+                    }
+                );
+
+
+            const data =
+                await response.json();
+
+
+            if (!response.ok ||
+                !data.success) {
+
+                throw new Error(
+                    data.error ||
+                    "Budget planning failed."
+                );
+
+            }
+
+
+            const plan =
+                data.budget_plan;
+
+
+            // ------------------------------------------------
+            // SHOW CARD
+            // ------------------------------------------------
+
+            document
+                .getElementById(
+                    "budgetPlannerCard"
+                )
+                .classList.remove(
+                    "hidden"
+                );
+
+
+            // ------------------------------------------------
+            // BASIC DETAILS
+            // ------------------------------------------------
+
+            document.getElementById(
+                "planCondition"
+            ).innerText =
+                displayName(
+                    plan.condition
+                );
+
+
+            document.getElementById(
+                "planStyle"
+            ).innerText =
+                displayName(
+                    plan.style
+                );
+
+
+            document.getElementById(
+                "planBudgetLevel"
+            ).innerText =
+                displayName(
+                    plan.budget_level
+                );
+
+
+            document.getElementById(
+                "planPriority"
+            ).innerText =
+                plan.repair_priority;
+
+
+            document.getElementById(
+                "planTotalBudget"
+            ).innerText =
+                formatCurrency(
+                    plan.budget
+                );
+
+
+            document.getElementById(
+                "planTotalPlanned"
+            ).innerText =
+                formatCurrency(
+                    plan.total_planned
+                );
+
+
+            document.getElementById(
+                "planRemaining"
+            ).innerText =
+                formatCurrency(
+                    plan.remaining
+                );
+
+
+            // ------------------------------------------------
+            // BUDGET ITEMS
+            // ------------------------------------------------
+
+            const itemsBox =
+                document.getElementById(
+                    "budgetItems"
+                );
+
+            itemsBox.innerHTML = "";
+
+
+            plan.items.forEach(
+                item => {
+
+                    itemsBox.innerHTML += `
+
+                        <div class="budget-item">
+
+                            <div class="budget-item-header">
+
+                                <span>
+                                    ${item.category}
+                                </span>
+
+                                <span>
+                                    ${formatCurrency(
+                                        item.amount
+                                    )}
+                                    (${item.percentage}%)
+                                </span>
+
+                            </div>
+
+                            <div class="budget-bar">
+
+                                <div
+                                    class="budget-bar-fill"
+                                    style="width:${item.percentage}%"
+                                ></div>
+
+                            </div>
+
+                        </div>
+
+                    `;
+
+                }
+            );
+
+
+            // ------------------------------------------------
+            // STYLE RECOMMENDATIONS
+            // ------------------------------------------------
+
+            const recommendationBox =
+                document.getElementById(
+                    "styleRecommendations"
+                );
+
+            recommendationBox.innerHTML = "";
+
+
+            plan.recommendations.forEach(
+                recommendation => {
+
+                    recommendationBox.innerHTML += `
+
+                        <div class="recommendation">
+
+                            ✓ ${recommendation}
+
+                        </div>
+
+                    `;
+
+                }
+            );
+
+
+            status.className =
+                "success";
+
+            status.innerText =
+                "✅ AI budget plan created successfully.";
+
+        }
+
+
+        catch (error) {
+
+            status.className =
+                "hidden";
+
+            showError(
+                error.message
+            );
+
+        }
+
+
+        finally {
+
+            button.disabled = false;
+
+        }
+
+    }
+
+
+    // ========================================================
+    // MATERIAL RECOMMENDATIONS
+    // ========================================================
+
+    async function getMaterialRecommendations() {
+
+        clearError();
+
+
+        if (!detectedCondition) {
+
+            showError(
+                "Please analyze the room first."
+            );
+
+            return;
+        }
+
+
+        const budget =
+            getValidatedBudget();
+
+
+        if (budget === null) {
+            return;
+        }
+
+
+        try {
+
+            const response =
+                await fetch(
+                    "/material-recommendation",
+                    {
+
+                        method: "POST",
+
+                        headers: {
+                            "Content-Type":
+                                "application/json"
+                        },
+
+                        body:
+                            JSON.stringify({
+
+                                condition:
+                                    detectedCondition,
+
+                                budget:
+                                    budget
+
+                            })
+
+                    }
+                );
+
+
+            const data =
+                await response.json();
+
+
+            if (!response.ok ||
+                !data.success) {
+
+                throw new Error(
+                    data.error ||
+                    "Material recommendation failed."
+                );
+
+            }
+
+
+            const box =
+                document.getElementById(
+                    "materialsResult"
+                );
+
+
+            box.classList.remove(
+                "hidden"
+            );
+
+
+            box.innerHTML = `
+
+                <p>
+                    <strong>
+                        Detected Condition:
+                    </strong>
+                    ${displayName(
+                        data.condition
+                    )}
+                </p>
+
+                <p>
+                    <strong>
+                        Renovation Budget:
+                    </strong>
+                    ${formatCurrency(
+                        data.budget
+                    )}
+                </p>
+
+                <p>
+                    <strong>
+                        Budget Level:
+                    </strong>
+                    ${displayName(
+                        data.budget_level
+                    )}
+                </p>
+
+                <p>
+                    <strong>
+                        Quality Level:
+                    </strong>
+                    ${data.quality_level}
+                </p>
+
+                <h3>
+                    🧱 Recommended Materials
+                </h3>
+
+                ${
+                    data.materials.map(
+                        material => `
+
+                            <div class="material">
+
+                                ✓ ${material}
+
+                            </div>
+
+                        `
+                    ).join("")
+                }
+
+            `;
+
+        }
+
+
+        catch (error) {
+
+            showError(
+                error.message
+            );
+
+        }
+
+    }
+
+
+    // ========================================================
+    // GENERATE AI RENOVATION
+    // ========================================================
+
+    async function generateRenovation() {
+
+        clearError();
+
+
+        if (!selectedFile) {
+
+            showError(
+                "Please upload a room image first."
+            );
+
+            return;
+        }
+
+
+        if (!detectedCondition) {
+
+            showError(
+                "Please analyze the room first."
+            );
+
+            return;
+        }
+
+
+        const budget =
+            getValidatedBudget();
+
+
+        if (budget === null) {
+            return;
+        }
+
+
+        const style =
+            document.getElementById(
+                "style"
+            ).value;
+
+
+        const button =
+            document.getElementById(
+                "renovationButton"
+            );
+
+
+        const resultCard =
+            document.getElementById(
+                "renovationResultCard"
+            );
+
+
+        const status =
+            document.getElementById(
+                "renovationStatus"
+            );
+
+
+        resultCard.classList.remove(
+            "hidden"
+        );
+
+
+        button.disabled = true;
+
+
+        status.className =
+            "progress";
+
+        status.innerText =
+            "🎨 Sending room to AI renovation engine. Please wait...";
+
+
+        const formData =
+            new FormData();
+
+
+        formData.append(
+            "image",
+            selectedFile
+        );
+
+
+        formData.append(
+            "style",
+            style
+        );
+
+
+        formData.append(
+            "budget",
+            budget
+        );
+
+
+        try {
+
+            status.innerText =
+                "⏳ Stable Diffusion is generating the renovated room...";
+
+
+            const response =
+                await fetch(
+                    "/renovation/generate",
+                    {
+
+                        method: "POST",
+
+                        body: formData
+
+                    }
+                );
+
+
+            const data =
+                await response.json();
+
+
+            if (!response.ok ||
+                !data.success) {
+
+                throw new Error(
+                    data.error ||
+                    "Renovation generation failed."
+                );
+
+            }
+
+
+            // ------------------------------------------------
+            // DISPLAY IMAGE
+            // ------------------------------------------------
+
+            const image =
+                document.getElementById(
+                    "renovationImage"
+                );
+
+
+            image.src =
+                data.image_url
+                + "?t="
+                + Date.now();
+
+
+            // ------------------------------------------------
+            // DETAILS
+            // ------------------------------------------------
+
+            const details =
+                document.getElementById(
+                    "renovationDetails"
+                );
+
+
+            details.innerHTML = `
+
+                <p>
+                    <strong>
+                        Detected Condition:
+                    </strong>
+                    ${displayName(
+                        data.condition
+                    )}
+                </p>
+
+                <p>
+                    <strong>
+                        Renovation Style:
+                    </strong>
+                    ${displayName(
+                        data.style
+                    )}
+                </p>
+
+                <p>
+                    <strong>
+                        Renovation Budget:
+                    </strong>
+                    ${formatCurrency(
+                        data.budget
+                    )}
+                </p>
+
+                <p>
+                    <strong>
+                        Budget Level:
+                    </strong>
+                    ${displayName(
+                        data.budget_level
+                    )}
+                </p>
+
+                <p>
+                    <strong>
+                        Repair Priority:
+                    </strong>
+                    ${data.repair_priority}
+                </p>
+
+                <p>
+                    <strong>
+                        AI Process:
+                    </strong>
+                    Wall repair + furniture + decor
+                </p>
+
+            `;
+
+
+            status.className =
+                "success";
+
+            status.innerText =
+                "✅ AI renovation completed successfully.";
+
+
+            // ------------------------------------------------
+            // SCROLL TO IMAGE
+            // ------------------------------------------------
+
+            resultCard.scrollIntoView({
+                behavior: "smooth"
+            });
+
+        }
+
+
+        catch (error) {
+
+            status.className =
+                "hidden";
+
+            showError(
+                error.message
+            );
+
+        }
+
+
+        finally {
+
+            button.disabled = false;
+
+        }
+
+    }
+
+</script>
+
+</body>
+
+</html>
