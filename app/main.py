@@ -7,16 +7,20 @@
 # + Budget-Aware Renovation
 # + Material Recommendations
 # + Cloudflare FLUX.2 Klein 4B Renovation
+# + ASYNCHRONOUS RENOVATION JOB PROCESSING
 # ============================================================
 
 import os
 import io
 import uuid
+import json
 import base64
+import threading
 import traceback
 from pathlib import Path
 
 import numpy as np
+import requests
 from PIL import Image
 
 from flask import (
@@ -61,12 +65,22 @@ RENOVATION_FOLDER = (
     / "renovation_outputs"
 )
 
+JOB_FOLDER = (
+    RENOVATION_FOLDER
+    / "jobs"
+)
+
 UPLOAD_FOLDER.mkdir(
     parents=True,
     exist_ok=True
 )
 
 RENOVATION_FOLDER.mkdir(
+    parents=True,
+    exist_ok=True
+)
+
+JOB_FOLDER.mkdir(
     parents=True,
     exist_ok=True
 )
@@ -223,10 +237,6 @@ print(
 
 def load_image_from_bytes(image_bytes):
 
-    """
-    Convert uploaded image bytes into RGB PIL image.
-    """
-
     image = Image.open(
         io.BytesIO(image_bytes)
     ).convert("RGB")
@@ -235,14 +245,6 @@ def load_image_from_bytes(image_bytes):
 
 
 def image_to_model_array(image):
-
-    """
-    Prepare image for CNN.
-
-    The saved model already contains its required
-    preprocessing layer, so preprocessing is not
-    applied again here.
-    """
 
     image = image.resize(
         (224, 224)
@@ -265,11 +267,6 @@ def save_uploaded_image(
     image,
     filename=None
 ):
-
-    """
-    Save original room image so Android can load it
-    from the Flask server.
-    """
 
     if filename is None:
 
@@ -295,13 +292,6 @@ def save_uploaded_image(
 
 def get_uploaded_file():
 
-    """
-    Accept both multipart field names:
-
-    file
-    image
-    """
-
     uploaded_file = (
         request.files.get("file")
         or request.files.get("image")
@@ -312,10 +302,6 @@ def get_uploaded_file():
 
 def build_absolute_url(path):
 
-    """
-    Convert an API path into an absolute URL.
-    """
-
     host = request.host
     scheme = request.scheme
 
@@ -324,24 +310,30 @@ def build_absolute_url(path):
     )
 
 
+def build_absolute_url_from_base(
+    base_url,
+    path
+):
+
+    base_url = (
+        str(base_url)
+        .rstrip("/")
+    )
+
+    if not path.startswith("/"):
+
+        path = "/" + path
+
+    return (
+        f"{base_url}{path}"
+    )
+
+
 # ============================================================
 # 10. CNN DAMAGE PREDICTION
 # ============================================================
 
 def predict_damage(image):
-
-    """
-    Predict room damage.
-
-    Returns:
-
-        condition
-        confidence
-        probabilities
-
-    The four class probabilities are always normalized
-    so that their total is 100%.
-    """
 
     model_input = image_to_model_array(
         image
@@ -367,10 +359,6 @@ def predict_damage(image):
         raw_predictions
     )
 
-    # --------------------------------------------------------
-    # Validate output length
-    # --------------------------------------------------------
-
     if len(raw_predictions) != len(
         CLASS_NAMES
     ):
@@ -379,10 +367,6 @@ def predict_damage(image):
             "CNN output does not contain exactly "
             "four class predictions."
         )
-
-    # --------------------------------------------------------
-    # Convert model output safely to probabilities
-    # --------------------------------------------------------
 
     if (
         np.all(raw_predictions >= 0)
@@ -438,10 +422,6 @@ def predict_damage(image):
 
     else:
 
-        # ----------------------------------------------------
-        # Stable softmax
-        # ----------------------------------------------------
-
         shifted = (
             raw_predictions
             -
@@ -459,13 +439,9 @@ def predict_damage(image):
         )
 
         print(
-            "CNN output interpreted as logits and "
-            "converted using softmax."
+            "CNN output interpreted as logits "
+            "and converted using softmax."
         )
-
-    # --------------------------------------------------------
-    # Final safety normalization
-    # --------------------------------------------------------
 
     probabilities_array = np.asarray(
         probabilities_array,
@@ -500,10 +476,6 @@ def predict_damage(image):
             total
         )
 
-    # --------------------------------------------------------
-    # Highest confidence condition
-    # --------------------------------------------------------
-
     highest_index = int(
         np.argmax(
             probabilities_array
@@ -526,10 +498,6 @@ def predict_damage(image):
         100.0
     )
 
-    # --------------------------------------------------------
-    # Convert probabilities to percentages
-    # --------------------------------------------------------
-
     probabilities = {
 
         CLASS_NAMES[i]:
@@ -546,10 +514,6 @@ def predict_damage(image):
             len(CLASS_NAMES)
         )
     }
-
-    # --------------------------------------------------------
-    # Correct tiny rounding difference
-    # --------------------------------------------------------
 
     rounded_total = round(
         sum(
@@ -578,10 +542,6 @@ def predict_damage(image):
             0.0,
             corrected_value
         )
-
-    # --------------------------------------------------------
-    # Final validation
-    # --------------------------------------------------------
 
     final_total = round(
         sum(
@@ -615,12 +575,6 @@ def predict_damage(image):
         "%"
     )
 
-    if final_total != 100.0:
-
-        print(
-            "WARNING: Probability total is not exactly 100%."
-        )
-
     return (
         condition,
         round(
@@ -635,9 +589,7 @@ def predict_damage(image):
 # 11. CONDITION DISPLAY NAME
 # ============================================================
 
-def format_condition(
-    condition
-):
+def format_condition(condition):
 
     names = {
 
@@ -656,9 +608,7 @@ def format_condition(
 
     return names.get(
         condition,
-        str(
-            condition
-        )
+        str(condition)
         .replace(
             "_",
             " "
@@ -676,11 +626,10 @@ def get_priority(
     confidence
 ):
 
-    if condition == "dampness":
-
-        return "High"
-
-    if condition == "crack":
+    if condition in [
+        "dampness",
+        "crack"
+    ]:
 
         return "High"
 
@@ -810,18 +759,14 @@ def get_priority_recommendation(
 # 13. ROOM TYPE NORMALIZATION
 # ============================================================
 
-def normalize_room_type(
-    room_type
-):
+def normalize_room_type(room_type):
 
     if not room_type:
 
         return "living_room"
 
     value = (
-        str(
-            room_type
-        )
+        str(room_type)
         .strip()
         .lower()
     )
@@ -872,15 +817,11 @@ def normalize_room_type(
 # 14. BUDGET LEVEL
 # ============================================================
 
-def get_budget_level(
-    budget
-):
+def get_budget_level(budget):
 
     try:
 
-        budget = float(
-            budget
-        )
+        budget = float(budget)
 
     except Exception:
 
@@ -1150,9 +1091,7 @@ def create_budget_plan(
 
     try:
 
-        budget = float(
-            budget
-        )
+        budget = float(budget)
 
     except Exception:
 
@@ -1177,13 +1116,12 @@ def create_budget_plan(
         "peeling_paint"
     ]
 
-    # --------------------------------------------------------
-    # Furniture OFF
-    # --------------------------------------------------------
-
     if not furniture_enabled:
 
-        if room_type == "living_room":
+        if room_type in [
+            "living_room",
+            "bedroom"
+        ]:
 
             if condition in damaged_conditions:
 
@@ -1201,68 +1139,6 @@ def create_budget_plan(
 
                     (
                         "Basic lighting",
-                        0.10
-                    ),
-
-                    (
-                        "Curtains / existing soft furnishing improvement",
-                        0.05
-                    ),
-
-                    (
-                        "Miscellaneous",
-                        0.10
-                    )
-                ]
-
-            else:
-
-                items = [
-
-                    (
-                        "Wall preparation and paint",
-                        0.40
-                    ),
-
-                    (
-                        "Basic lighting",
-                        0.15
-                    ),
-
-                    (
-                        "Curtains / soft furnishing improvement",
-                        0.15
-                    ),
-
-                    (
-                        "Surface finishing",
-                        0.20
-                    ),
-
-                    (
-                        "Miscellaneous",
-                        0.10
-                    )
-                ]
-
-        elif room_type == "bedroom":
-
-            if condition in damaged_conditions:
-
-                items = [
-
-                    (
-                        "Damage repair and surface preparation",
-                        0.45
-                    ),
-
-                    (
-                        "Wall putty, primer and paint",
-                        0.30
-                    ),
-
-                    (
-                        "Basic bedroom lighting",
                         0.10
                     ),
 
@@ -1337,75 +1213,12 @@ def create_budget_plan(
                 )
             ]
 
-    # --------------------------------------------------------
-    # Furniture ON + Basic
-    # --------------------------------------------------------
-
     elif budget_level == "Basic":
 
-        if room_type == "living_room":
-
-            if condition in damaged_conditions:
-
-                items = [
-
-                    (
-                        "Essential damage repair",
-                        0.40
-                    ),
-
-                    (
-                        "Wall putty, primer and paint",
-                        0.30
-                    ),
-
-                    (
-                        "Basic lighting",
-                        0.10
-                    ),
-
-                    (
-                        "Minimal low-cost furniture",
-                        0.10
-                    ),
-
-                    (
-                        "Miscellaneous",
-                        0.10
-                    )
-                ]
-
-            else:
-
-                items = [
-
-                    (
-                        "Wall preparation and paint",
-                        0.35
-                    ),
-
-                    (
-                        "Basic lighting",
-                        0.15
-                    ),
-
-                    (
-                        "Minimal low-cost furniture",
-                        0.15
-                    ),
-
-                    (
-                        "Simple curtains / decor",
-                        0.15
-                    ),
-
-                    (
-                        "Miscellaneous",
-                        0.20
-                    )
-                ]
-
-        elif room_type == "bedroom":
+        if room_type in [
+            "living_room",
+            "bedroom"
+        ]:
 
             if condition in damaged_conditions:
 
@@ -1496,10 +1309,6 @@ def create_budget_plan(
                     0.15
                 )
             ]
-
-    # --------------------------------------------------------
-    # Furniture ON + Standard
-    # --------------------------------------------------------
 
     elif budget_level == "Standard":
 
@@ -1602,10 +1411,6 @@ def create_budget_plan(
                     0.10
                 )
             ]
-
-    # --------------------------------------------------------
-    # Furniture ON + Premium
-    # --------------------------------------------------------
 
     else:
 
@@ -1719,10 +1524,6 @@ def create_budget_plan(
                 )
             ]
 
-    # --------------------------------------------------------
-    # Convert percentages into amounts
-    # --------------------------------------------------------
-
     result = []
 
     for name, percentage in items:
@@ -1745,10 +1546,6 @@ def create_budget_plan(
             "estimated_amount":
                 amount
         })
-
-    # --------------------------------------------------------
-    # Correct rounding difference
-    # --------------------------------------------------------
 
     calculated_total = sum(
 
@@ -1856,10 +1653,6 @@ def build_room_style_prompt(
         budget_level
     )
 
-    # --------------------------------------------------------
-    # CONDITION / REPAIR
-    # --------------------------------------------------------
-
     if condition == "crack":
 
         repair_text = (
@@ -1892,10 +1685,6 @@ def build_room_style_prompt(
             "structurally unchanged and make only suitable "
             "aesthetic improvements."
         )
-
-    # --------------------------------------------------------
-    # STYLE
-    # --------------------------------------------------------
 
     if style == "minimal":
 
@@ -1937,10 +1726,6 @@ def build_room_style_prompt(
             "and calm natural tones."
         )
 
-    # --------------------------------------------------------
-    # BUDGET
-    # --------------------------------------------------------
-
     if budget_level == "Basic":
 
         budget_text = (
@@ -1976,10 +1761,6 @@ def build_room_style_prompt(
             "lighting and decoration while preserving the original "
             "room structure."
         )
-
-    # --------------------------------------------------------
-    # FURNITURE
-    # --------------------------------------------------------
 
     if not furniture_enabled:
 
@@ -2021,10 +1802,6 @@ def build_room_style_prompt(
             "for the room, style and premium budget."
         )
 
-    # --------------------------------------------------------
-    # ROOM CHANGES
-    # --------------------------------------------------------
-
     if budget_level == "Basic":
 
         room_changes = (
@@ -2050,10 +1827,6 @@ def build_room_style_prompt(
             "renovation using suitable furniture, lighting, finishes "
             "and decor while preserving the original architecture."
         )
-
-    # --------------------------------------------------------
-    # FINAL PROMPT
-    # --------------------------------------------------------
 
     prompt = f"""
 Photorealistic renovation of the SAME {room_name} shown in the
@@ -2241,16 +2014,59 @@ realistically according to the selected condition, room,
 style and strict budget.
 """
 
-    prompt = " ".join(
+    return " ".join(
         prompt.split()
     )
-
-    return prompt
 
 
 # ============================================================
 # 19. CLOUDFLARE FLUX GENERATION
 # ============================================================
+
+def prepare_cloudflare_reference_image(
+    image
+):
+
+    image = image.convert(
+        "RGB"
+    )
+
+    max_dimension = 511
+
+    width, height = image.size
+
+    scale = min(
+        max_dimension / width,
+        max_dimension / height,
+        1.0
+    )
+
+    new_width = max(
+        1,
+        int(round(width * scale))
+    )
+
+    new_height = max(
+        1,
+        int(round(height * scale))
+    )
+
+    if (
+        new_width != width
+        or
+        new_height != height
+    ):
+
+        image = image.resize(
+            (
+                new_width,
+                new_height
+            ),
+            Image.Resampling.LANCZOS
+        )
+
+    return image
+
 
 def generate_with_cloudflare(
     image,
@@ -2264,8 +2080,6 @@ def generate_with_cloudflare(
             "CLOUDFLARE_API_TOKEN is missing from .env."
         )
 
-    import requests
-
     endpoint = (
         f"https://api.cloudflare.com/client/v4/accounts/"
         f"{CLOUDFLARE_ACCOUNT_ID}"
@@ -2273,25 +2087,25 @@ def generate_with_cloudflare(
         f"{CLOUDFLARE_MODEL}"
     )
 
-    # --------------------------------------------------------
-    # Input image
-    # --------------------------------------------------------
+    reference_image = (
+        prepare_cloudflare_reference_image(
+            image
+        )
+    )
 
     image_buffer = io.BytesIO()
 
-    image.convert(
-        "RGB"
-    ).save(
+    reference_image.save(
         image_buffer,
         format="JPEG",
-        quality=95
+        quality=90
     )
 
     image_buffer.seek(0)
 
     files = {
 
-        "input_image": (
+        "input_image_0": (
 
             "room.jpg",
 
@@ -2330,26 +2144,34 @@ def generate_with_cloudflare(
     )
 
     print(
-        "Sending image to Cloudflare..."
+        "Reference image size:",
+        reference_image.size
     )
 
     print(
-        "Prompt:",
-        prompt
+        "Sending image to Cloudflare..."
     )
 
-    response = requests.post(
+    try:
 
-        endpoint,
+        response = requests.post(
 
-        headers=headers,
+            endpoint,
 
-        files=files,
+            headers=headers,
 
-        data=data,
+            files=files,
 
-        timeout=300
-    )
+            data=data,
+
+            timeout=300
+        )
+
+    except requests.RequestException as exc:
+
+        raise RuntimeError(
+            f"Unable to connect to Cloudflare: {exc}"
+        ) from exc
 
     print(
         "Cloudflare HTTP status:",
@@ -2360,22 +2182,43 @@ def generate_with_cloudflare(
 
         print(
             "Cloudflare response:",
-            response.text[:3000]
+            response.text[:5000]
         )
 
         raise RuntimeError(
-            "Cloudflare image generation failed."
+            "Cloudflare image generation failed. "
+            f"HTTP {response.status_code}: "
+            f"{response.text[:1000]}"
         )
 
-    result = response.json()
+    try:
+
+        result = response.json()
+
+    except Exception as exc:
+
+        raise RuntimeError(
+            "Cloudflare returned an invalid JSON response."
+        ) from exc
 
     if not result.get(
         "success",
         False
     ):
 
+        print(
+            "Cloudflare error response:",
+            result
+        )
+
+        errors = result.get(
+            "errors",
+            []
+        )
+
         raise RuntimeError(
-            "Cloudflare returned an unsuccessful response."
+            "Cloudflare returned an unsuccessful response: "
+            f"{errors}"
         )
 
     result_data = result.get(
@@ -2398,14 +2241,11 @@ def generate_with_cloudflare(
             "Cloudflare response does not contain image data."
         )
 
-    # --------------------------------------------------------
-    # Decode Base64
-    # --------------------------------------------------------
-
     try:
 
         generated_bytes = base64.b64decode(
-            image_base64
+            image_base64,
+            validate=True
         )
 
     except Exception as exc:
@@ -2414,9 +2254,11 @@ def generate_with_cloudflare(
             "Unable to decode Cloudflare image."
         ) from exc
 
-    # --------------------------------------------------------
-    # Decode generated image with PIL
-    # --------------------------------------------------------
+    if not generated_bytes:
+
+        raise RuntimeError(
+            "Cloudflare returned empty image data."
+        )
 
     try:
 
@@ -2432,20 +2274,23 @@ def generate_with_cloudflare(
             "Cloudflare returned invalid image data."
         ) from exc
 
-    # --------------------------------------------------------
-    # Save as PNG
-    # --------------------------------------------------------
-
     generated_image.save(
         output_path,
         format="PNG"
     )
 
-    print(
-        "Renovation image saved:"
-    )
+    if (
+        not output_path.exists()
+        or
+        output_path.stat().st_size <= 0
+    ):
+
+        raise RuntimeError(
+            "Generated renovation image was not saved correctly."
+        )
 
     print(
+        "Renovation image saved:",
         output_path
     )
 
@@ -2454,11 +2299,525 @@ def generate_with_cloudflare(
         generated_image.size
     )
 
+    print(
+        "Generated image file size:",
+        output_path.stat().st_size,
+        "bytes"
+    )
+
     return output_path
 
 
 # ============================================================
-# 20. HOME
+# 20. JOB FILE UTILITIES
+# ============================================================
+
+def get_job_path(job_id):
+
+    return (
+        JOB_FOLDER
+        /
+        f"{job_id}.json"
+    )
+
+
+def write_job_status(
+    job_id,
+    data
+):
+
+    job_path = get_job_path(
+        job_id
+    )
+
+    temporary_path = (
+        JOB_FOLDER
+        /
+        f"{job_id}.tmp"
+    )
+
+    with open(
+        temporary_path,
+        "w",
+        encoding="utf-8"
+    ) as file:
+
+        json.dump(
+            data,
+            file,
+            indent=2,
+            ensure_ascii=False
+        )
+
+    os.replace(
+        temporary_path,
+        job_path
+    )
+
+
+def read_job_status(job_id):
+
+    job_path = get_job_path(
+        job_id
+    )
+
+    if not job_path.exists():
+
+        return None
+
+    try:
+
+        with open(
+            job_path,
+            "r",
+            encoding="utf-8"
+        ) as file:
+
+            return json.load(file)
+
+    except Exception:
+
+        return None
+
+
+# ============================================================
+# 21. BACKGROUND RENOVATION PROCESS
+# ============================================================
+
+def process_renovation_job(
+    job_id,
+    input_path,
+    room_type,
+    style,
+    budget,
+    furniture_enabled,
+    base_url
+):
+
+    try:
+
+        print()
+        print("=" * 70)
+        print(
+            f"STARTING BACKGROUND RENOVATION JOB: {job_id}"
+        )
+        print("=" * 70)
+
+        write_job_status(
+            job_id,
+            {
+                "success":
+                    True,
+
+                "job_id":
+                    job_id,
+
+                "status":
+                    "processing",
+
+                "message":
+                    "Room analysis and renovation generation are in progress."
+            }
+        )
+
+        # ----------------------------------------------------
+        # Load image
+        # ----------------------------------------------------
+
+        with open(
+            input_path,
+            "rb"
+        ) as file:
+
+            image_bytes = file.read()
+
+        image = load_image_from_bytes(
+            image_bytes
+        )
+
+        # ----------------------------------------------------
+        # Budget
+        # ----------------------------------------------------
+
+        budget_level = get_budget_level(
+            budget
+        )
+
+        renovation_scope = (
+            get_renovation_scope(
+                budget_level
+            )
+        )
+
+        # ----------------------------------------------------
+        # CNN
+        # ----------------------------------------------------
+
+        (
+            condition,
+            confidence,
+            probabilities
+        ) = predict_damage(
+            image
+        )
+
+        print(
+            "Background job condition:",
+            condition
+        )
+
+        # ----------------------------------------------------
+        # Priority
+        # ----------------------------------------------------
+
+        priority_result = (
+            get_priority_recommendation(
+                condition,
+                confidence
+            )
+        )
+
+        # ----------------------------------------------------
+        # Prompt
+        # ----------------------------------------------------
+
+        prompt = build_room_style_prompt(
+
+            room_type=
+                room_type,
+
+            style=
+                style,
+
+            condition=
+                condition,
+
+            budget=
+                budget,
+
+            furniture_enabled=
+                furniture_enabled
+        )
+
+        # ----------------------------------------------------
+        # Output filename
+        # ----------------------------------------------------
+
+        filename = (
+
+            f"{job_id}_"
+            f"{room_type}_"
+            f"{style}_"
+            f"{budget_level.lower()}.png"
+        )
+
+        output_path = (
+
+            RENOVATION_FOLDER
+            /
+            filename
+        )
+
+        # ----------------------------------------------------
+        # Cloudflare generation
+        # ----------------------------------------------------
+
+        generate_with_cloudflare(
+
+            image=
+                image,
+
+            prompt=
+                prompt,
+
+            output_path=
+                output_path
+        )
+
+        # ----------------------------------------------------
+        # Materials
+        # ----------------------------------------------------
+
+        recommendations = (
+
+            get_budget_material_recommendations(
+
+                condition,
+
+                room_type,
+
+                budget
+            )
+        )
+
+        # ----------------------------------------------------
+        # Budget plan
+        # ----------------------------------------------------
+
+        budget_plan_result = (
+
+            create_budget_plan(
+
+                room_type,
+
+                condition,
+
+                budget,
+
+                furniture_enabled
+            )
+        )
+
+        # ----------------------------------------------------
+        # Planning values
+        # ----------------------------------------------------
+
+        optimistic_estimate = round(
+            budget * 0.90,
+            2
+        )
+
+        realistic_estimate = round(
+            budget,
+            2
+        )
+
+        # ----------------------------------------------------
+        # Probability list
+        # ----------------------------------------------------
+
+        probabilities_list = [
+
+            {
+                "condition":
+                    CLASS_NAMES[i],
+
+                "condition_display":
+                    format_condition(
+                        CLASS_NAMES[i]
+                    ),
+
+                "percentage":
+                    probabilities[
+                        CLASS_NAMES[i]
+                    ]
+            }
+
+            for i in range(
+                len(CLASS_NAMES)
+            )
+        ]
+
+        probability_total = round(
+            sum(
+                probabilities.values()
+            ),
+            2
+        )
+
+        # ----------------------------------------------------
+        # Renovated image URL
+        # ----------------------------------------------------
+
+        image_path = (
+            f"/renovation/image/{filename}"
+        )
+
+        image_url = (
+            build_absolute_url_from_base(
+                base_url,
+                image_path
+            )
+        )
+
+        image_url_with_cache_bust = (
+            f"{image_url}?v={job_id}"
+        )
+
+        # ----------------------------------------------------
+        # Original image
+        # ----------------------------------------------------
+
+        original_filename = (
+            save_uploaded_image(
+                image
+            )
+        )
+
+        original_path = (
+            f"/uploads/{original_filename}"
+        )
+
+        original_url = (
+            build_absolute_url_from_base(
+                base_url,
+                original_path
+            )
+        )
+
+        # ----------------------------------------------------
+        # Completed result
+        # ----------------------------------------------------
+
+        final_result = {
+
+            "success":
+                True,
+
+            "job_id":
+                job_id,
+
+            "status":
+                "completed",
+
+            "message":
+                "Renovation generated successfully.",
+
+            "room_type":
+                room_type,
+
+            "room_name":
+                ROOM_TYPES[
+                    room_type
+                ]["name"],
+
+            "style":
+                style,
+
+            "style_name":
+                STYLE_NAMES[
+                    style
+                ],
+
+            "condition":
+                condition,
+
+            "condition_display":
+                format_condition(
+                    condition
+                ),
+
+            "confidence":
+                confidence,
+
+            "highest_confidence":
+                confidence,
+
+            "probabilities":
+                probabilities,
+
+            "probabilities_list":
+                probabilities_list,
+
+            "probability_total":
+                probability_total,
+
+            "priority":
+                priority_result[
+                    "priority"
+                ],
+
+            "priority_recommendation":
+                priority_result[
+                    "recommendation"
+                ],
+
+            "priority_message":
+                priority_result[
+                    "priority_message"
+                ],
+
+            "budget":
+                budget,
+
+            "budget_level":
+                budget_level,
+
+            "renovation_scope":
+                renovation_scope,
+
+            "optimistic_estimate":
+                optimistic_estimate,
+
+            "realistic_estimate":
+                realistic_estimate,
+
+            "furniture_enabled":
+                furniture_enabled,
+
+            "material_recommendations":
+                recommendations,
+
+            "budget_plan":
+                budget_plan_result,
+
+            "original_image_url":
+                original_url,
+
+            "renovated_image_url":
+                image_url_with_cache_bust,
+
+            "renovation_image_url":
+                image_url_with_cache_bust,
+
+            "image_url":
+                image_url_with_cache_bust,
+
+            "image_path":
+                image_path,
+
+            "filename":
+                filename
+        }
+
+        write_job_status(
+            job_id,
+            final_result
+        )
+
+        print()
+        print("=" * 70)
+        print(
+            f"RENOVATION JOB COMPLETED: {job_id}"
+        )
+        print("=" * 70)
+
+    except Exception as exc:
+
+        traceback.print_exc()
+
+        error_result = {
+
+            "success":
+                False,
+
+            "job_id":
+                job_id,
+
+            "status":
+                "failed",
+
+            "message":
+                "Renovation generation failed.",
+
+            "error":
+                str(exc)
+        }
+
+        try:
+
+            write_job_status(
+                job_id,
+                error_result
+            )
+
+        except Exception:
+
+            traceback.print_exc()
+
+
+# ============================================================
+# 22. HOME
 # ============================================================
 
 @app.route(
@@ -2500,12 +2859,15 @@ def home():
 
             "premium":
                 "Above ₹75,000"
-        }
+        },
+
+        "renovation_processing":
+            "asynchronous"
     })
 
 
 # ============================================================
-# 21. HEALTH
+# 23. HEALTH
 # ============================================================
 
 @app.route(
@@ -2530,7 +2892,7 @@ def health():
 
 
 # ============================================================
-# 22. RENOVATION OPTIONS
+# 24. RENOVATION OPTIONS
 # ============================================================
 
 @app.route(
@@ -2629,7 +2991,7 @@ def renovation_options():
 
 
 # ============================================================
-# 23. PREDICT
+# 25. PREDICT
 # ============================================================
 
 @app.route(
@@ -2675,10 +3037,6 @@ def predict_endpoint():
             image_bytes
         )
 
-        # ----------------------------------------------------
-        # Save original image
-        # ----------------------------------------------------
-
         original_filename = save_uploaded_image(
             image
         )
@@ -2691,10 +3049,6 @@ def predict_endpoint():
             original_path
         )
 
-        # ----------------------------------------------------
-        # CNN
-        # ----------------------------------------------------
-
         (
             condition,
             confidence,
@@ -2702,10 +3056,6 @@ def predict_endpoint():
         ) = predict_damage(
             image
         )
-
-        # ----------------------------------------------------
-        # Probability list for Android
-        # ----------------------------------------------------
 
         probabilities_list = [
 
@@ -2728,10 +3078,6 @@ def predict_endpoint():
                 len(CLASS_NAMES)
             )
         ]
-
-        # ----------------------------------------------------
-        # Priority recommendation
-        # ----------------------------------------------------
 
         priority_result = (
             get_priority_recommendation(
@@ -2811,7 +3157,7 @@ def predict_endpoint():
 
 
 # ============================================================
-# 24. MATERIAL RECOMMENDATION
+# 26. MATERIAL RECOMMENDATION
 # ============================================================
 
 @app.route(
@@ -2829,11 +3175,9 @@ def material_recommendation():
             or {}
         )
 
-        condition = (
-            data.get(
-                "condition",
-                "normal"
-            )
+        condition = data.get(
+            "condition",
+            "normal"
         )
 
         room_type = normalize_room_type(
@@ -2847,11 +3191,9 @@ def material_recommendation():
             "budget"
         )
 
-        furniture_enabled = (
-            data.get(
-                "furniture_enabled",
-                True
-            )
+        furniture_enabled = data.get(
+            "furniture_enabled",
+            True
         )
 
         if isinstance(
@@ -2915,9 +3257,7 @@ def material_recommendation():
 
         result["success"] = True
 
-        result["room_type"] = (
-            room_type
-        )
+        result["room_type"] = room_type
 
         result["room_name"] = (
             ROOM_TYPES[
@@ -2955,7 +3295,7 @@ def material_recommendation():
 
 
 # ============================================================
-# 25. BUDGET PLAN
+# 27. BUDGET PLAN
 # ============================================================
 
 @app.route(
@@ -2990,11 +3330,9 @@ def budget_plan():
             )
         )
 
-        furniture_enabled = (
-            data.get(
-                "furniture_enabled",
-                True
-            )
+        furniture_enabled = data.get(
+            "furniture_enabled",
+            True
         )
 
         if isinstance(
@@ -3047,7 +3385,7 @@ def budget_plan():
 
 
 # ============================================================
-# 26. RENOVATION GENERATION
+# 28. ASYNCHRONOUS RENOVATION GENERATION
 # ============================================================
 
 @app.route(
@@ -3059,7 +3397,7 @@ def renovation_generate():
     try:
 
         # ----------------------------------------------------
-        # Image
+        # Get uploaded image
         # ----------------------------------------------------
 
         uploaded_file = get_uploaded_file()
@@ -3093,9 +3431,27 @@ def renovation_generate():
 
             }), 400
 
-        image = load_image_from_bytes(
-            image_bytes
-        )
+        # ----------------------------------------------------
+        # Validate image BEFORE creating job
+        # ----------------------------------------------------
+
+        try:
+
+            image = load_image_from_bytes(
+                image_bytes
+            )
+
+        except Exception as exc:
+
+            return jsonify({
+
+                "success":
+                    False,
+
+                "error":
+                    f"Invalid image: {exc}"
+
+            }), 400
 
         # ----------------------------------------------------
         # Room type
@@ -3105,7 +3461,10 @@ def renovation_generate():
 
             request.form.get(
                 "room_type",
-                "living_room"
+                request.form.get(
+                    "roomType",
+                    "living_room"
+                )
             )
         )
 
@@ -3135,7 +3494,10 @@ def renovation_generate():
 
             request.form.get(
                 "furniture_enabled",
-                "true"
+                request.form.get(
+                    "furnitureEnabled",
+                    "true"
+                )
             )
             .strip()
             .lower()
@@ -3176,271 +3538,73 @@ def renovation_generate():
             budget
         )
 
-        budget_level = get_budget_level(
-            budget
+        # ----------------------------------------------------
+        # Create unique job
+        # ----------------------------------------------------
+
+        job_id = uuid.uuid4().hex
+
+        input_filename = (
+            f"{job_id}_input.jpg"
         )
 
-        renovation_scope = (
-            get_renovation_scope(
-                budget_level
-            )
-        )
-
-        # ----------------------------------------------------
-        # CNN
-        # ----------------------------------------------------
-
-        (
-            condition,
-            confidence,
-            probabilities
-        ) = predict_damage(
-            image
-        )
-
-        # ----------------------------------------------------
-        # Priority
-        # ----------------------------------------------------
-
-        priority_result = (
-            get_priority_recommendation(
-                condition,
-                confidence
-            )
-        )
-
-        # ----------------------------------------------------
-        # Prompt
-        # ----------------------------------------------------
-
-        prompt = build_room_style_prompt(
-
-            room_type=
-                room_type,
-
-            style=
-                style,
-
-            condition=
-                condition,
-
-            budget=
-                budget,
-
-            furniture_enabled=
-                furniture_enabled
-        )
-
-        # ----------------------------------------------------
-        # File name
-        # ----------------------------------------------------
-
-        image_id = (
-            uuid.uuid4().hex
-        )
-
-        filename = (
-
-            f"{image_id}_"
-            f"{room_type}_"
-            f"{style}_"
-            f"{budget_level.lower()}.png"
-        )
-
-        output_path = (
-
-            RENOVATION_FOLDER
+        input_path = (
+            JOB_FOLDER
             /
-            filename
+            input_filename
         )
 
         # ----------------------------------------------------
-        # Generate
+        # Save input image
         # ----------------------------------------------------
 
-        generate_with_cloudflare(
-
-            image=
-                image,
-
-            prompt=
-                prompt,
-
-            output_path=
-                output_path
+        image.save(
+            input_path,
+            format="JPEG",
+            quality=90
         )
 
         # ----------------------------------------------------
-        # Verify generated image exists
+        # Capture public base URL BEFORE leaving request
         # ----------------------------------------------------
 
-        if not output_path.exists():
+        external_url = os.getenv(
+            "RENDER_EXTERNAL_URL"
+        )
 
-            raise RuntimeError(
-                "Renovation image was generated but "
-                "the output file was not found."
+        if external_url:
+
+            base_url = (
+                external_url.rstrip("/")
             )
 
-        if output_path.stat().st_size <= 0:
+        else:
 
-            raise RuntimeError(
-                "Renovation image file is empty."
+            base_url = (
+                f"{request.scheme}://"
+                f"{request.host}"
             )
 
-        print(
-            "Verified renovation image:"
-        )
-
-        print(
-            output_path
-        )
-
-        print(
-            "File size:",
-            output_path.stat().st_size,
-            "bytes"
-        )
-
         # ----------------------------------------------------
-        # Material recommendations
+        # Initial job status
         # ----------------------------------------------------
 
-        recommendations = (
-
-            get_budget_material_recommendations(
-
-                condition,
-
-                room_type,
-
-                budget
-            )
-        )
-
-        # ----------------------------------------------------
-        # Budget plan
-        # ----------------------------------------------------
-
-        budget_plan_result = (
-
-            create_budget_plan(
-
-                room_type,
-
-                condition,
-
-                budget,
-
-                furniture_enabled
-            )
-        )
-
-        # ----------------------------------------------------
-        # Planning estimates
-        #
-        # These are planning values, not guaranteed
-        # contractor quotations.
-        # ----------------------------------------------------
-
-        optimistic_estimate = round(
-            budget * 0.90,
-            2
-        )
-
-        realistic_estimate = round(
-            budget,
-            2
-        )
-
-        # ----------------------------------------------------
-        # Probability list
-        # ----------------------------------------------------
-
-        probabilities_list = [
-
-            {
-                "condition":
-                    CLASS_NAMES[i],
-
-                "condition_display":
-                    format_condition(
-                        CLASS_NAMES[i]
-                    ),
-
-                "percentage":
-                    probabilities[
-                        CLASS_NAMES[i]
-                    ]
-            }
-
-            for i in range(
-                len(CLASS_NAMES)
-            )
-        ]
-
-        probability_total = round(
-            sum(
-                probabilities.values()
-            ),
-            2
-        )
-
-        # ----------------------------------------------------
-        # Image URL
-        # ----------------------------------------------------
-
-        image_path = (
-
-            f"/renovation/image/"
-            f"{filename}"
-        )
-
-        image_url = build_absolute_url(
-            image_path
-        )
-
-        # Unique query parameter helps prevent
-        # stale image caching in clients.
-
-        image_url_with_cache_bust = (
-            f"{image_url}?v={image_id}"
-        )
-
-        # ----------------------------------------------------
-        # Original uploaded image
-        # ----------------------------------------------------
-
-        original_filename = save_uploaded_image(
-            image
-        )
-
-        original_path = (
-            f"/uploads/{original_filename}"
-        )
-
-        original_url = build_absolute_url(
-            original_path
-        )
-
-        # ----------------------------------------------------
-        # Final response
-        # ----------------------------------------------------
-
-        return jsonify({
+        initial_status = {
 
             "success":
                 True,
 
+            "job_id":
+                job_id,
+
+            "status":
+                "queued",
+
             "message":
-                "Renovation generated successfully.",
+                "Renovation job created successfully.",
 
             "room_type":
                 room_type,
-
-            "room_name":
-                ROOM_TYPES[
-                    room_type
-                ]["name"],
 
             "style":
                 style,
@@ -3450,88 +3614,90 @@ def renovation_generate():
                     style
                 ],
 
-            "condition":
-                condition,
-
-            "condition_display":
-                format_condition(
-                    condition
-                ),
-
-            "confidence":
-                confidence,
-
-            "highest_confidence":
-                confidence,
-
-            "probabilities":
-                probabilities,
-
-            "probabilities_list":
-                probabilities_list,
-
-            "probability_total":
-                probability_total,
-
-            "priority":
-                priority_result[
-                    "priority"
-                ],
-
-            "priority_recommendation":
-                priority_result[
-                    "recommendation"
-                ],
-
-            "priority_message":
-                priority_result[
-                    "priority_message"
-                ],
-
             "budget":
                 budget,
 
             "budget_level":
-                budget_level,
-
-            "renovation_scope":
-                renovation_scope,
-
-            "optimistic_estimate":
-                optimistic_estimate,
-
-            "realistic_estimate":
-                realistic_estimate,
+                get_budget_level(
+                    budget
+                ),
 
             "furniture_enabled":
                 furniture_enabled,
 
-            "material_recommendations":
-                recommendations,
+            "status_url":
+                build_absolute_url_from_base(
 
-            "budget_plan":
-                budget_plan_result,
+                    base_url,
 
-            "original_image_url":
-                original_url,
+                    f"/renovation/job/{job_id}"
+                )
+        }
 
-            # Main renovation image URL
-            "renovated_image_url":
-                image_url_with_cache_bust,
+        write_job_status(
+            job_id,
+            initial_status
+        )
 
-            # Android compatibility
-            "renovation_image_url":
-                image_url_with_cache_bust,
+        # ----------------------------------------------------
+        # Start background worker
+        # ----------------------------------------------------
 
-            "image_url":
-                image_url_with_cache_bust,
+        worker = threading.Thread(
 
-            "image_path":
-                image_path,
+            target=
+                process_renovation_job,
 
-            "filename":
-                filename
-        })
+            args=(
+
+                job_id,
+
+                str(input_path),
+
+                room_type,
+
+                style,
+
+                budget,
+
+                furniture_enabled,
+
+                base_url
+            ),
+
+            daemon=True
+        )
+
+        worker.start()
+
+        print()
+        print("=" * 70)
+        print(
+            "RENOVATION JOB QUEUED"
+        )
+        print("=" * 70)
+
+        print(
+            "Job ID:",
+            job_id
+        )
+
+        print(
+            "Status URL:",
+            initial_status[
+                "status_url"
+            ]
+        )
+
+        # ----------------------------------------------------
+        # IMPORTANT:
+        # Return immediately.
+        # Do NOT wait for Cloudflare.
+        # ----------------------------------------------------
+
+        return jsonify(
+            initial_status
+        ), 202
 
     except Exception as exc:
 
@@ -3542,6 +3708,9 @@ def renovation_generate():
             "success":
                 False,
 
+            "status":
+                "failed",
+
             "error":
                 str(exc)
 
@@ -3549,7 +3718,48 @@ def renovation_generate():
 
 
 # ============================================================
-# 27. RENOVATION IMAGE SERVING
+# 29. INDIVIDUAL RENOVATION JOB STATUS
+# ============================================================
+
+@app.route(
+    "/renovation/job/<job_id>",
+    methods=["GET"]
+)
+def renovation_job_status(
+    job_id
+):
+
+    job_id = (
+        str(job_id)
+        .strip()
+    )
+
+    job = read_job_status(
+        job_id
+    )
+
+    if job is None:
+
+        return jsonify({
+
+            "success":
+                False,
+
+            "status":
+                "not_found",
+
+            "error":
+                "Renovation job not found."
+
+        }), 404
+
+    return jsonify(
+        job
+    )
+
+
+# ============================================================
+# 30. RENOVATION IMAGE SERVING
 # ============================================================
 
 @app.route(
@@ -3559,6 +3769,10 @@ def renovation_generate():
 def renovation_image(
     filename
 ):
+
+    filename = Path(
+        filename
+    ).name
 
     safe_path = (
         RENOVATION_FOLDER
@@ -3577,10 +3791,6 @@ def renovation_image(
                 "Renovation image not found."
 
         }), 404
-
-    # --------------------------------------------------------
-    # Determine MIME type
-    # --------------------------------------------------------
 
     suffix = (
         safe_path.suffix
@@ -3619,7 +3829,7 @@ def renovation_image(
 
 
 # ============================================================
-# 28. UPLOADED IMAGE SERVING
+# 31. UPLOADED IMAGE SERVING
 # ============================================================
 
 @app.route(
@@ -3629,6 +3839,10 @@ def renovation_image(
 def uploaded_image(
     filename
 ):
+
+    filename = Path(
+        filename
+    ).name
 
     safe_path = (
         UPLOAD_FOLDER
@@ -3661,7 +3875,7 @@ def uploaded_image(
 
 
 # ============================================================
-# 29. RENOVATION STATUS
+# 32. RENOVATION STATUS / GENERATED IMAGES
 # ============================================================
 
 @app.route(
@@ -3741,7 +3955,7 @@ def renovation_status():
 
 
 # ============================================================
-# 30. FILE SIZE ERROR
+# 33. FILE SIZE ERROR
 # ============================================================
 
 @app.errorhandler(
@@ -3764,7 +3978,7 @@ def file_too_large(
 
 
 # ============================================================
-# 31. GENERAL ERROR HANDLER
+# 34. GENERAL ERROR HANDLER
 # ============================================================
 
 @app.errorhandler(
@@ -3788,7 +4002,7 @@ def handle_general_error(
 
 
 # ============================================================
-# 32. START SERVER
+# 35. START SERVER
 # ============================================================
 
 if __name__ == "__main__":
@@ -3818,6 +4032,11 @@ if __name__ == "__main__":
         RENOVATION_FOLDER
     )
 
+    print(
+        "Job folder:",
+        JOB_FOLDER
+    )
+
     print()
     print("Budget levels:")
 
@@ -3841,41 +4060,10 @@ if __name__ == "__main__":
     )
 
     print()
-    print("Room types:")
+    print("Renovation processing:")
 
     print(
-        "Living Room"
-    )
-
-    print(
-        "Bedroom"
-    )
-
-    print(
-        "Kitchen"
-    )
-
-    print()
-    print("Renovation styles:")
-
-    print(
-        "Minimal"
-    )
-
-    print(
-        "Contemporary"
-    )
-
-    print(
-        "Luxury"
-    )
-
-    print(
-        "Budget-Friendly"
-    )
-
-    print(
-        "Eco-Friendly"
+        "ASYNC / BACKGROUND JOB"
     )
 
     print()
@@ -3885,7 +4073,12 @@ if __name__ == "__main__":
 
         host="0.0.0.0",
 
-        port=int(os.getenv("PORT", 5000)),
+        port=int(
+            os.getenv(
+                "PORT",
+                5000
+            )
+        ),
 
         debug=False,
 
